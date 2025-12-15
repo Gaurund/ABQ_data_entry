@@ -318,7 +318,7 @@ class LabelInput(tk.Frame):
         parent,
         label,
         var,
-        input_class=ttk.Entry,
+        input_class=None,
         input_args=None,
         label_args=None,
         field_spec=None,
