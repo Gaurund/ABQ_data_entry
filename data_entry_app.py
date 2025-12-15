@@ -1,5 +1,6 @@
 # data_entry_app.py
 """The ABQ Data Entry application"""
+from decimal import Decimal, InvalidOperation
 import tkinter as tk
 from tkinter import ttk
 from datetime import datetime
@@ -42,6 +43,7 @@ class LabelInput(tk.Frame):
         input_class=ttk.Entry,
         input_args=None,
         label_args=None,
+        disable_var=None,
         **kwargs,
     ):
         super().__init__(parent, **kwargs)
@@ -54,7 +56,12 @@ class LabelInput(tk.Frame):
         else:
             self.label = ttk.Label(self, text=label, **label_args)
             self.label.grid(row=0, column=0, sticky=(tk.W + tk.E))
-        if input_class in (ttk.Checkbutton, ttk.Button, ttk.Radiobutton):
+        if input_class in (
+            ttk.Checkbutton,
+            ttk.Button,
+            ttk.Radiobutton,
+            ValidatedRadioGroup,
+        ):
             input_args["variable"] = self.variable
         else:
             input_args["textvariable"] = self.variable
@@ -67,6 +74,23 @@ class LabelInput(tk.Frame):
             self.input = input_class(self, **input_args)
             self.input.grid(row=1, column=0, sticky=(tk.W + tk.E))
             self.columnconfigure(0, weight=1)
+        if disable_var:
+            self.disable_var = disable_var
+            self.disable_var.trace_add("write", self._check_disable)
+        self.error = getattr(self.input, "error", tk.StringVar())
+        ttk.Label(self, textvariable=self.error, **label_args).grid(
+            row=2, column=0, sticky=(tk.W + tk.E)
+        )
+
+    def _check_disable(self, *_):
+        if not hasattr(self, "disable_var"):
+            return
+        if self.disable_var.get():
+            self.input.configure(state=tk.DISABLED)
+            self.variable.set("")
+            self.error.set("")
+        else:
+            self.input.configure(state=tk.NORMAL)
 
     def grid(self, sticky=(tk.E + tk.W), **kwargs):
         """Override grid to add default sticky values"""
@@ -106,22 +130,27 @@ class DataRecordForm(ttk.Frame):
             "Notes": tk.StringVar(),
         }
         r_info = self._add_frame("Record Information")
-        LabelInput(r_info, "Date", var=self._vars["Date"]).grid(row=0, column=0)
+        LabelInput(r_info, "Date", var=self._vars["Date"], input_class=DateEntry).grid(
+            row=0, column=0
+        )
         LabelInput(
             r_info,
             "Time",
-            input_class=ttk.Combobox,
+            input_class=ValidatedCombobox,
             var=self._vars["Time"],
             input_args={"values": ["8:00", "12:00", "16:00", "20:00"]},
         ).grid(row=0, column=1)
-        LabelInput(r_info, "Technician", var=self._vars["Technician"]).grid(
-            row=0, column=2
-        )
+        LabelInput(
+            r_info,
+            "Technician",
+            var=self._vars["Technician"],
+            input_class=RequiredEntry,
+        ).grid(row=0, column=2)
 
         LabelInput(
             r_info,
             "Lab",
-            input_class=ttk.Radiobutton,
+            input_class=ValidatedRadioGroup,
             var=self._vars["Lab"],
             input_args={"values": ["A", "B", "C"]},
         ).grid(row=1, column=0)
@@ -140,23 +169,26 @@ class DataRecordForm(ttk.Frame):
         LabelInput(
             e_info,
             "Humidity (g/m³)",
-            input_class=ttk.Spinbox,
+            input_class=ValidatedSpinbox,
             var=self._vars["Humidity"],
             input_args={"from_": 0.5, "to": 52.0, "increment": 0.01},
+            disable_var=self._vars["Equipment Fault"],
         ).grid(row=0, column=0)
         LabelInput(
             e_info,
             "Light (klx)",
-            input_class=ttk.Spinbox,
+            input_class=ValidatedSpinbox,
             var=self._vars["Light"],
             input_args={"from_": 0, "to": 100, "increment": 0.01},
+            disable_var=self._vars["Equipment Fault"],
         ).grid(row=0, column=1)
         LabelInput(
             e_info,
             "Temperature (°C)",
-            input_class=ttk.Spinbox,
+            input_class=ValidatedSpinbox,
             var=self._vars["Temperature"],
             input_args={"from_": 4, "to": 40, "increment": 0.01},
+            disable_var=self._vars["Equipment Fault"],
         ).grid(row=0, column=2)
         LabelInput(
             e_info,
@@ -169,44 +201,66 @@ class DataRecordForm(ttk.Frame):
         LabelInput(
             p_info,
             "Plants",
-            input_class=ttk.Spinbox,
+            input_class=ValidatedSpinbox,
             var=self._vars["Plants"],
             input_args={"from_": 0, "to": 20},
         ).grid(row=0, column=0)
         LabelInput(
             p_info,
             "Blossoms",
-            input_class=ttk.Spinbox,
+            input_class=ValidatedSpinbox,
             var=self._vars["Blossoms"],
             input_args={"from_": 0, "to": 1000},
         ).grid(row=0, column=1)
         LabelInput(
             p_info,
             "Fruit",
-            input_class=ttk.Spinbox,
+            input_class=ValidatedSpinbox,
             var=self._vars["Fruit"],
             input_args={"from_": 0, "to": 1000},
         ).grid(row=0, column=2)
+
+        min_height_var = tk.DoubleVar(value="-infinity")
+        max_height_var = tk.DoubleVar(value="infinity")
+
         LabelInput(
             p_info,
             "Min Height (cm)",
-            input_class=ttk.Spinbox,
+            input_class=ValidatedSpinbox,
             var=self._vars["Min Height"],
-            input_args={"from_": 0, "to": 1000, "increment": 0.01},
+            input_args={
+                "from_": 0,
+                "to": 1000,
+                "increment": 0.01,
+                "max_var": max_height_var,
+                "focus_update_var": min_height_var,
+            },
         ).grid(row=1, column=0)
         LabelInput(
             p_info,
             "Max Height (cm)",
-            input_class=ttk.Spinbox,
+            input_class=ValidatedSpinbox,
             var=self._vars["Max Height"],
-            input_args={"from_": 0, "to": 1000, "increment": 0.01},
+            input_args={
+                "from_": 0,
+                "to": 1000,
+                "increment": 0.01,
+                "max_var": max_height_var,
+                "focus_update_var": min_height_var,
+            },
         ).grid(row=1, column=1)
         LabelInput(
             p_info,
             "Median Height (cm)",
-            input_class=ttk.Spinbox,
+            input_class=ValidatedSpinbox,
             var=self._vars["Med Height"],
-            input_args={"from_": 0, "to": 1000, "increment": 0.01},
+            input_args={
+                "from_": 0,
+                "to": 1000,
+                "increment": 0.01,
+                "max_var": max_height_var,
+                "focus_update_var": min_height_var,
+            },
         ).grid(row=1, column=2)
 
         LabelInput(
@@ -230,7 +284,10 @@ class DataRecordForm(ttk.Frame):
             if isinstance(var, tk.BooleanVar):
                 var.set(False)
             else:
-                var.set("")
+                var.set('')
+        current_date = datetime.today().strftime('%Y-%m-%d')
+        self._vars['Date'].set(current_date)
+        self._vars['Time'].label_widget.input.focus()
 
     def get(self):
         data = dict()
@@ -245,6 +302,276 @@ class DataRecordForm(ttk.Frame):
                     message = f"Error in field: {key}.  Data was not saved!"
                     raise ValueError(message)
         return data
+
+
+class ValidatedMixin:
+    """Adds a validation functionality to an input widget"""
+
+    def __init__(self, *args, error_var=None, **kwargs):
+        self.error = error_var or tk.StringVar()
+        super().__init__(*args, **kwargs)
+        vcmd = self.register(self._validate)
+        invcmd = self.register(self._invalid)
+        self.configure(
+            validate="all",
+            validatecommand=(vcmd, "%P", "%s", "%S", "%V", "%i", "%d"),
+            invalidcommand=(invcmd, "%P", "%s", "%S", "%V", "%i", "%d"),
+        )
+
+    def _toggle_error(self, on=False):
+        self.configure(foreground=("red" if on else "black"))
+
+    def _validate(self, proposed, current, char, event, index, action):
+        self.error.set("")
+        self._toggle_error()
+        valid = True
+        # if the widget is disabled, don't validate
+        state = str(self.configure("state")[-1])
+        if state == tk.DISABLED:
+            return valid
+        if event == "focusout":
+            valid = self._focusout_validate(event=event)
+        elif event == "key":
+            valid = self._key_validate(
+                proposed=proposed,
+                current=current,
+                char=char,
+                event=event,
+                index=index,
+                action=action,
+            )
+        return valid
+
+    def _focusout_validate(self, **kwargs):
+        return True
+
+    def _key_validate(self, **kwargs):
+        return True
+
+    def _invalid(self, proposed, current, char, event, index, action):
+        if event == "focusout":
+            self._focusout_invalid(event=event)
+        elif event == "key":
+            self._key_invalid(
+                proposed=proposed,
+                current=current,
+                char=char,
+                event=event,
+                index=index,
+                action=action,
+            )
+
+    def _focusout_invalid(self, **kwargs):
+        """Handle invalid data on a focus event"""
+        self._toggle_error(True)
+
+    def _key_invalid(self, **kwargs):
+        """Handle invalid data on a key event.
+        By default we want to do nothing"""
+        pass
+
+    def trigger_focusout_validation(self):
+        valid = self._validate("", "", "", "focusout", "", "")
+        if not valid:
+            self._focusout_invalid(event="focusout")
+        return valid
+
+
+class RequiredEntry(ValidatedMixin, ttk.Entry):
+    """An Entry that requires a value"""
+
+    def _focusout_validate(self, event):
+        valid = True
+        if not self.get():
+            valid = False
+            self.error.set("A value is required")
+        return valid
+
+
+class DateEntry(ValidatedMixin, ttk.Entry):
+    """An Entry that only accepts ISO Date strings"""
+
+    def _key_validate(self, action, index, char, **kwargs):
+        valid = True
+        if action == "0":  # This is a delete action
+            valid = True
+        elif index in ("0", "1", "2", "3", "5", "6", "8", "9"):
+            valid = char.isdigit()
+        elif index in ("4", "7"):
+            valid = char == "-"
+        else:
+            valid = False
+        return valid
+
+    def _focusout_validate(self, event):
+        valid = True
+        if not self.get():
+            self.error.set("A value is required")
+            valid = False
+        try:
+            datetime.strptime(self.get(), "%Y-%m-%d")
+        except ValueError:
+            self.error.set("Invalid date")
+            valid = False
+        return valid
+
+
+class ValidatedCombobox(ValidatedMixin, ttk.Combobox):
+    """A combobox that only takes values from its string list"""
+
+    def _key_validate(self, proposed, action, **kwargs):
+        valid = True
+        if action == "0":
+            self.set("")
+            return True
+        values = self.cget("values")
+        # Do a case-insensitive match against the entered text
+        matching = [x for x in values if x.lower().startswith(proposed.lower())]
+        if len(matching) == 0:
+            valid = False
+        elif len(matching) == 1:
+            self.set(matching[0])
+            self.icursor(tk.END)
+            valid = False
+        return valid
+
+    def _focusout_validate(self, **kwargs):
+        valid = True
+        if not self.get():
+            valid = False
+            self.error.set("A value is required")
+        return valid
+
+
+class ValidatedSpinbox(ValidatedMixin, ttk.Spinbox):
+    def __init__(
+        self,
+        *args,
+        min_var=None,
+        max_var=None,
+        focus_update_var=None,
+        from_="-Infinity",
+        to="Infinity",
+        **kwargs,
+    ):
+        super().__init__(*args, from_=from_, to=to, **kwargs)
+        increment = Decimal(str(kwargs.get("increment", "1.0")))
+        self.precision = increment.normalize().as_tuple().exponent
+        self.variable = kwargs.get("textvariable")
+        if not self.variable:
+            self.variable = tk.DoubleVar()
+            self.configure(textvariable=self.variable)
+        if min_var:
+            self.min_var = min_var
+            self.min_var.trace_add("write", self._set_minimum)
+        if max_var:
+            self.max_var = max_var
+            self.max_var.trace_add("write", self._set_maximum)
+        self.focus_update_var = focus_update_var
+        self.bind("<FocusOut>", self._set_focus_update_var)
+
+    def _set_focus_update_var(self, event):
+        value = self.get()
+        if self.focus_update_var and not self.error.get():
+            self.focus_update_var.set(value)
+
+    def _set_minimum(self, *_):
+        current = self.get()
+        try:
+            new_min = self.min_var.get()
+            self.config(from_=new_min)
+        except (tk.TclError, ValueError):
+            pass
+        if not current:
+            self.delete(0, tk.END)
+        else:
+            self.variable.set(current)
+        self.trigger_focusout_validation()
+
+    def _set_maximum(self, *_):
+        current = self.get()
+        try:
+            new_max = self.max_var.get()
+            self.config(to=new_max)
+        except (tk.TclError, ValueError):
+            pass
+        if not current:
+            self.delete(0, tk.END)
+        else:
+            self.variable.set(current)
+            self.trigger_focusout_validation()
+
+    def _key_validate(self, char, index, current, proposed, action, **kwargs):
+        if action == "0":
+            return True
+        valid = True
+        min_val = self.cget("from")
+        max_val = self.cget("to")
+        no_negative = min_val >= 0
+        no_decimal = self.precision >= 0
+        if any(
+            [
+                (char not in "-1234567890."),
+                (char == "-" and (no_negative or index != "0")),
+                (char == "." and (no_decimal or "." in current)),
+            ]
+        ):
+            return False
+        if proposed in "-.":
+            return True
+        proposed = Decimal(proposed)
+        proposed_precision = proposed.as_tuple().exponent
+        if any([(proposed > max_val), (proposed_precision < self.precision)]):
+            return False
+        return valid
+
+    def _focusout_validate(self, **kwargs):
+        valid = True
+        value = self.get()
+        min_val = self.cget("from")
+        max_val = self.cget("to")
+        try:
+            d_value = Decimal(value)
+        except InvalidOperation:
+            self.error.set(f"Invalid number string: {value}")
+            return False
+        if d_value < min_val:
+            self.error.set(f"Value is too low (min {min_val})")
+            valid = False
+        if d_value > max_val:
+            self.error.set(f"Value is too high (max {max_val})")
+            valid = False
+        return valid
+
+
+class ValidatedRadioGroup(ttk.Frame):
+    """A validated radio button group"""
+
+    def __init__(
+        self,
+        *args,
+        variable=None,
+        error_var=None,
+        values=None,
+        button_args=None,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+        self.variable = variable or tk.StringVar()
+        self.error = error_var or tk.StringVar()
+        self.values = values or list()
+        self.button_args = button_args or dict()
+        for v in self.values:
+            button = ttk.Radiobutton(
+                self, value=v, text=v, variable=self.variable, **self.button_args
+            )
+            button.pack(side=tk.LEFT, ipadx=10, ipady=2, expand=True, fill="x")
+        self.bind("<FocusOut>", self.trigger_focusout_validation)
+
+    def trigger_focusout_validation(self, *_):
+        self.error.set("")
+        if not self.variable.get():
+            self.error.set("A value is required")
 
 
 class Application(tk.Tk):
@@ -283,6 +610,24 @@ class Application(tk.Tk):
         self._records_saved += 1
         self.status.set("{} records saved this session".format(self._records_saved))
         self.recordform.reset()
+        errors = self.recordform.get_errors()
+        if errors:
+            self.status.set(
+                "Cannot save, error in fields: {}".format(", ".join(errors.keys()))
+            )
+            return
+
+    def get_errors(self):
+        """Get a list of field errors in the form"""
+        errors = {}
+        for key, var in self._vars.items():
+            inp = var.label_widget.input
+            error = var.label_widget.error
+            if hasattr(inp, "trigger_focusout_validation"):
+                inp.trigger_focusout_validation()
+            if error.get():
+                errors[key] = error.get()
+        return errors
 
 
 if __name__ == "__main__":
