@@ -280,14 +280,29 @@ class DataRecordForm(ttk.Frame):
 
     def reset(self):
         """Resets the form entries"""
+        lab = self._vars["Lab"].get()
+        time = self._vars["Time"].get()
+        technician = self._vars["Technician"].get()
+        try:
+            plot = self._vars["Plot"].get()
+        except tk.TclError:
+            plot = ""
+        plot_values = self._vars["Plot"].label_widget.input.cget("values")
         for var in self._vars.values():
             if isinstance(var, tk.BooleanVar):
                 var.set(False)
             else:
-                var.set('')
-        current_date = datetime.today().strftime('%Y-%m-%d')
-        self._vars['Date'].set(current_date)
-        self._vars['Time'].label_widget.input.focus()
+                var.set("")
+        current_date = datetime.today().strftime("%Y-%m-%d")
+        self._vars["Date"].set(current_date)
+        self._vars["Time"].label_widget.input.focus()
+        if plot not in ('', 0, plot_values[-1]):
+            self._vars['Lab'].set(lab)
+            self._vars['Time'].set(time)
+            self._vars['Technician'].set(technician)
+            next_plot_index = plot_values.index(str(plot)) + 1
+            self._vars['Plot'].set(plot_values[next_plot_index])
+            self._vars['Seed Sample'].label_widget.input.focus()
 
     def get(self):
         data = dict()
