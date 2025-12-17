@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
+from tkinter.simpledialog import Dialog
 from datetime import datetime
 from . import widgets as w
 
@@ -206,5 +207,55 @@ class DataRecordForm(ttk.Frame):
                     raise ValueError(message)
         return data
 
+    def get_errors(self):
+        """Get a list of field errors in the form"""
+        errors = {}
+        for key, var in self._vars.items():
+            inp = var.label_widget.input
+            error = var.label_widget.error
+            if hasattr(inp, "trigger_focusout_validation"):
+                inp.trigger_focusout_validation()
+            if error.get():
+                errors[key] = error.get()
+        return errors
+
     def _on_save(self):
         self.event_generate("<<SaveRecord>>")
+
+class LoginDialog(Dialog):
+  """A dialog that asks for username and password"""
+  def __init__(self, parent, title, error=''):
+    self._pw = tk.StringVar()
+    self._user = tk.StringVar()
+    self._error = tk.StringVar(value=error)
+    super().__init__(parent, title=title)
+
+  def body(self, frame):
+    ttk.Label(frame, text='Login to ABQ').grid(row=0)
+    if self._error.get():
+      ttk.Label(frame, textvariable=self._error).grid(row=1)
+    user_inp = w.LabelInput(
+      frame, 'User name:', input_class=w.RequiredEntry,
+      var=self._user
+    )
+    user_inp.grid()
+    w.LabelInput(
+      frame, 'Password:', input_class=w.RequiredEntry,
+      input_args={'show': '*'}, var=self._pw
+    ).grid()
+    return user_inp.input
+  
+  def buttonbox(self):
+    box = ttk.Frame(self)
+    ttk.Button(
+      box, text="Login", command=self.ok, default=tk.ACTIVE
+    ).grid(padx=5, pady=5)
+    ttk.Button(
+      box, text="Cancel", command=self.cancel
+    ).grid(row=0, column=1, padx=5, pady=5)
+    self.bind("<Return>", self.ok)
+    self.bind("<Escape>", self.cancel)
+    box.pack()  
+    
+  def apply(self):
+    self.result = (self._user.get(), self._pw.get())    

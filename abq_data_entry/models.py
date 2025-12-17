@@ -67,9 +67,10 @@ class CSVModel:
         "Notes": {"req": False, "type": FT.long_string},
     }
 
-    def __init__(self):
-        datestring = datetime.today().strftime("%Y-%m-%d")
-        filename = "abq_data_record_{}.csv".format(datestring)
+    def __init__(self, filename=None):
+        if not filename:
+            datestring = datetime.today().strftime("%Y-%m-%d")
+            filename = "abq_data_record_{}.csv".format(datestring)
         self.file = Path(filename)
         file_exists = os.access(self.file, os.F_OK)
         parent_writeable = os.access(self.file.parent, os.W_OK)
