@@ -4,6 +4,7 @@ from pathlib import Path
 from datetime import datetime
 import os
 from .constants import FieldTypes as FT
+import json
 
 
 class CSVModel:
@@ -89,3 +90,35 @@ class CSVModel:
             if newfile:
                 csvwriter.writeheader()
             csvwriter.writerow(data)
+
+
+class SettingsModel:
+  """A model for saving settings"""
+  fields = {
+    'autofill date': {'type': 'bool', 'value': True},
+    'autofill sheet data': {'type': 'bool', 'value': True}
+  }
+  def __init__(self):
+    filename = 'abq_settings.json'
+    self.filepath = Path.home() / filename
+    self.load()
+  def load(self):
+    if not self.filepath.exists():
+      return
+    with open(self.filepath, 'r') as fh:
+      raw_values = json.load(fh)
+    for key in self.fields:
+      if key in raw_values and 'value' in raw_values[key]:
+        raw_value = raw_values[key]['value']
+        self.fields[key]['value'] = raw_value
+  def save(self):
+    with open(self.filepath, 'w') as fh:
+      json.dump(self.fields, fh)
+  def set(self, key, value):
+    if (
+      key in self.fields and
+      type(value).__name__ == self.fields[key]['type']
+    ):
+      self.fields[key]['value'] = value
+    else:
+      raise ValueError("Bad key or wrong variable type")
