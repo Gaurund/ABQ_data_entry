@@ -38,21 +38,70 @@ class CSVModel:
         "Notes": {'req': False, 'type': FT.long_string}
     }
 
+
     def __init__(self, filename):
 
         self.filename = filename
 
-    def save_record(self, data):
+    # new code for ch7
+    def get_all_records(self):
+        """Read in all records from the CSV and return a list"""
+        if not os.path.exists(self.filename):
+            return []
+
+        with open(self.filename, 'r') as fh:
+            csvreader = csv.DictReader(fh)
+            missing_fields = set(self.fields.keys()) - set(csvreader.fieldnames)
+            if len(missing_fields) > 0:
+                raise Exception(
+                    "File is missing fields: {}"
+                    .format(', '.join(missing_fields))
+                )
+            else:
+                records = list(csvreader)
+
+        # Correct issue with boolean fields
+        trues = ('true', 'yes', '1')
+        bool_fields = [
+            key for key, meta
+            in self.fields.items()
+            if meta['type'] == FT.boolean
+        ]
+        for record in records:
+            for key in bool_fields:
+                record[key] = record[key].lower() in trues
+        return records
+
+    def get_record(self, rownum):
+        """Get a single record by row number
+
+        Callling code should catch IndexError
+          in case of a bad rownum.
+        """
+
+        return self.get_all_records()[rownum]
+
+    def save_record(self, data, rownum=None):
         """Save a dict of data to the CSV file"""
 
-        newfile = not os.path.exists(self.filename)
-
-        with open(self.filename, 'a') as fh:
-            csvwriter = csv.DictWriter(fh, fieldnames=self.fields.keys())
-            if newfile:
+        if rownum is not None:
+            # This is an update
+            records = self.get_all_records()
+            records[rownum] = data
+            with open(self.filename, 'w') as fh:
+                csvwriter = csv.DictWriter(fh, fieldnames=self.fields.keys())
                 csvwriter.writeheader()
-            csvwriter.writerow(data)
+                csvwriter.writerows(records)
+        else:
+            # This is a new record
+            newfile = not os.path.exists(self.filename)
 
+            with open(self.filename, 'a') as fh:
+                csvwriter = csv.DictWriter(fh, fieldnames=self.fields.keys())
+                if newfile:
+                    csvwriter.writeheader()
+                csvwriter.writerow(data)
+# end new ch7 code
 
 class SettingsModel:
     """A model for saving settings"""

@@ -16,35 +16,76 @@ class Application(tk.Tk):
         self.title("ABQ Data Entry Application")
         self.resizable(width=False, height=False)
 
-        # new code for ch6
+        # new code for ch7
         datestring = datetime.today().strftime("%Y-%m-%d")
         default_filename = "abq_data_record_{}.csv".format(datestring)
         self.filename = tk.StringVar(value=default_filename)
+        self.data_model = m.CSVModel(filename=self.filename.get())
         self.settings_model = m.SettingsModel()
         self.load_settings()
 
         self.callbacks = {
             'file->select': self.on_file_select,
-            'file->quit': self.quit
+            'file->quit': self.quit,
+            'show_recordlist': self.show_recordlist,
+            'new_record': self.open_record,
+            'on_open_record': self.open_record,
+            'on_save': self.on_save
         }
 
         menu = v.MainMenu(self, self.settings, self.callbacks)
         self.config(menu=menu)
+
+        # The data record form
         self.recordform = v.DataRecordForm(
-            self, m.CSVModel.fields, self.settings)
-        # end new
+            self, m.CSVModel.fields, self.settings, self.callbacks)
+        self.recordform.grid(row=1, padx=10, sticky='NSEW')
 
-        self.recordform.grid(row=1, padx=10)
-
-        self.savebutton = ttk.Button(self, text="Save", command=self.on_save)
-        self.savebutton.grid(sticky="e", row=2, padx=10)
+        # The data record list
+        self.recordlist = v.RecordList(self, self.callbacks)
+        self.recordlist.grid(row=1, padx=10, sticky='NSEW')
+        self.populate_recordlist()
 
         # status bar
         self.status = tk.StringVar()
         self.statusbar = ttk.Label(self, textvariable=self.status)
-        self.statusbar.grid(sticky="we", row=3, padx=10)
+        self.statusbar.grid(sticky="we", row=2, padx=10)
 
         self.records_saved = 0
+
+    def show_recordlist(self):
+        """Show the recordform"""
+
+        self.recordlist.tkraise()
+
+    def populate_recordlist(self):
+        try:
+            rows = self.data_model.get_all_records()
+        except Exception as e:
+            messagebox.showerror(
+                title='Error',
+                message='Problem reading file',
+                detail=str(e)
+            )
+        else:
+            self.recordlist.populate(rows)
+
+    def open_record(self, rownum=None):
+        if rownum is None:
+            record = None
+        else:
+            rownum = int(rownum)
+            try:
+                record = self.data_model.get_record(rownum)
+            except Exception as e:
+                messagebox.showerror(
+                    title='Error',
+                    message='Problem reading file',
+                    detail=str(e)
+                )
+                return
+        self.recordform.load_record(rownum, record)
+        self.recordform.tkraise()
 
     def on_save(self):
         """Handles save button clicks"""
@@ -64,27 +105,49 @@ class Application(tk.Tk):
 
             return False
 
-        filename = self.filename.get()
-        model = m.CSVModel(filename)
         data = self.recordform.get()
-        model.save_record(data)
-        self.records_saved += 1
-        self.status.set(
-            "{} records saved this session".format(self.records_saved)
-        )
-        self.recordform.reset()
+        rownum = self.recordform.current_record
+        try:
+            self.data_model.save_record(data, rownum)
+        except IndexError as e:
+            messagebox.showerror(
+                title='Error',
+                message='Invalid row specified',
+                detail=str(e)
+            )
+            self.status.set('Tried to update invalid row')
 
-    # new code for ch6
+        except Exception as e:
+            messagebox.showerror(
+                title='Error',
+                message='Problem saving record',
+                detail=str(e)
+            )
+            self.status.set('Problem saving record')
+
+        else:
+            self.records_saved += 1
+            self.status.set(
+                "{} records saved this session".format(self.records_saved)
+            )
+            self.populate_recordlist()
+            # Only reset the form when we're appending records
+            if self.recordform.current_record is None:
+                self.recordform.reset()
+
+
     def on_file_select(self):
         """Handle the file->select action from the menu"""
 
         filename = filedialog.asksaveasfilename(
             title='Select the target file for saving records',
             defaultextension='.csv',
-            filetypes=[('Comma-Separated Values', '*.csv *.CSV')]
+            filetypes=[('CSV', '*.csv *.CSV')]
         )
         if filename:
             self.filename.set(filename)
+            self.data_model = m.CSVModel(filename=self.filename.get())
+            self.populate_recordlist()
 
     def save_settings(self, *args):
         """Save the current settings to a preferences file"""

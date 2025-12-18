@@ -8,14 +8,21 @@ from . import widgets as w
 class DataRecordForm(tk.Frame):
     """The input form for our widgets"""
 
-    def __init__(self, parent, fields, settings, *args, **kwargs):
+    def __init__(self, parent, fields, settings, callbacks, *args, **kwargs):
         super().__init__(parent, *args, **kwargs)
         self.settings = settings
+        self.callbacks = callbacks
+
+        # New for ch7
+        self.current_record = None
 
         # A dict to keep track of input widgets
         self.inputs = {}
 
         # Build the form
+        self.record_label = ttk.Label()
+        self.record_label.grid(row=0, column=0)
+
         # recordinfo section
         recordinfo = tk.LabelFrame(self, text="Record Information")
 
@@ -53,7 +60,7 @@ class DataRecordForm(tk.Frame):
         )
         self.inputs['Seed sample'].grid(row=1, column=2)
 
-        recordinfo.grid(row=0, column=0, sticky="we")
+        recordinfo.grid(row=1, column=0, sticky="we")
 
         # Environment Data
         environmentinfo = tk.LabelFrame(self, text="Environment Data")
@@ -77,7 +84,7 @@ class DataRecordForm(tk.Frame):
             field_spec=fields['Equipment Fault']
         )
         self.inputs['Equipment Fault'].grid(row=1, column=0, columnspan=3)
-        environmentinfo.grid(row=1, column=0, sticky="we")
+        environmentinfo.grid(row=2, column=0, sticky="we")
 
         # Plant Data section
         plantinfo = tk.LabelFrame(self, text="Plant Data")
@@ -125,7 +132,7 @@ class DataRecordForm(tk.Frame):
         )
         self.inputs['Median Height'].grid(row=1, column=2)
 
-        plantinfo.grid(row=2, column=0, sticky="we")
+        plantinfo.grid(row=3, column=0, sticky="we")
 
         # Notes section
         self.inputs['Notes'] = w.LabelInput(
@@ -133,7 +140,15 @@ class DataRecordForm(tk.Frame):
             field_spec=fields['Notes'],
             input_args={"width": 75, "height": 10}
         )
-        self.inputs['Notes'].grid(sticky="w", row=3, column=0)
+        self.inputs['Notes'].grid(sticky="w", row=4, column=0)
+
+        # The save button
+        self.savebutton = ttk.Button(
+            self,
+            text="Save",
+            command=self.callbacks["on_save"])
+        self.savebutton.grid(sticky="e", row=5, padx=10)
+
 
         # default the form
         self.reset()
@@ -151,6 +166,9 @@ class DataRecordForm(tk.Frame):
 
     def reset(self):
         """Resets the form entries"""
+
+        # clear the current record id
+        self.current_record = None
 
         # gather the values to keep for each lab
         lab = self.inputs['Lab'].get()
@@ -193,6 +211,22 @@ class DataRecordForm(tk.Frame):
 
         return errors
 
+    # new for ch7
+    def load_record(self, rownum, data=None):
+        self.current_record = rownum
+        if rownum is None:
+            self.reset()
+            self.record_label.config(text='New Record')
+        else:
+            self.record_label.config(text='Record #{}'.format(rownum))
+            for key, widget in self.inputs.items():
+                self.inputs[key].set(data.get(key, ''))
+                try:
+                    widget.input.trigger_focusout_validation()
+                except AttributeError:
+                    pass
+
+
 
 class MainMenu(tk.Menu):
     """The Application's main menu"""
@@ -226,6 +260,14 @@ class MainMenu(tk.Menu):
         )
         self.add_cascade(label='Options', menu=options_menu)
 
+        # switch from recordlist to recordform
+        go_menu = tk.Menu(self, tearoff=False)
+        go_menu.add_command(label="Record List",
+                         command=callbacks['show_recordlist'])
+        go_menu.add_command(label="New Record",
+                         command=callbacks['new_record'])
+        self.add_cascade(label='Go', menu=go_menu)
+
         # The help menu
 
         help_menu = tk.Menu(self, tearoff=False)
@@ -243,3 +285,77 @@ class MainMenu(tk.Menu):
         )
 
         messagebox.showinfo(title='About', message=about_message, detail=about_detail)
+
+
+# new code for ch7
+class RecordList(tk.Frame):
+    """Display for CSV file contents"""
+
+    column_defs = {
+        '#0': {'label': 'Row', 'anchor': tk.W},
+        'Date': {'label': 'Date', 'width': 150, 'stretch': True},
+        'Time': {'label': 'Time'},
+        'Lab': {'label': 'Lab', 'width': 40},
+        'Plot': {'label': 'Plot', 'width': 80}
+    }
+    default_width = 100
+    default_minwidth = 10
+    default_anchor = tk.CENTER
+
+    def __init__(self, parent, callbacks, *args, **kwargs):
+        super().__init__(parent, *args, **kwargs)
+        self.callbacks = callbacks
+        self.columnconfigure(0, weight=1)
+        self.rowconfigure(0, weight=1)
+
+        # create treeview
+        self.treeview = ttk.Treeview(
+            self,
+            columns=list(self.column_defs.keys())[1:],
+            selectmode='browse'
+        )
+
+        # configure scrollbar for the treeview
+        self.scrollbar = ttk.Scrollbar(
+            self,
+            orient=tk.VERTICAL,
+            command=self.treeview.yview
+        )
+        self.treeview.configure(yscrollcommand=self.scrollbar.set)
+        self.treeview.grid(row=0, column=0, sticky='NSEW')
+        self.scrollbar.grid(row=0, column=1, sticky='NSW')
+
+        # Configure treeview columns
+        for name, definition in self.column_defs.items():
+            label = definition.get('label', '')
+            anchor = definition.get('anchor', self.default_anchor)
+            minwidth = definition.get('minwidth', self.default_minwidth)
+            width = definition.get('width', self.default_width)
+            stretch = definition.get('stretch', False)
+            self.treeview.heading(name, text=label, anchor=anchor)
+            self.treeview.column(name, anchor=anchor, minwidth=minwidth,
+                                 width=width, stretch=stretch)
+
+        self.treeview.bind('<<TreeviewOpen>>', self.on_open_record)
+
+    def populate(self, rows):
+        """Clear the treeview and write the supplied data rows to it."""
+
+        for row in self.treeview.get_children():
+            self.treeview.delete(row)
+
+        valuekeys = list(self.column_defs.keys())[1:]
+        for rownum, rowdata in enumerate(rows):
+            values = [rowdata[key] for key in valuekeys]
+            self.treeview.insert('', 'end', iid=str(rownum),
+                                 text=str(rownum), values=values)
+
+        if len(rows) > 0:
+            self.treeview.focus_set()
+            self.treeview.selection_set(0)
+            self.treeview.focus('0')
+
+    def on_open_record(self, *args):
+
+        selected_id = self.treeview.selection()[0]
+        self.callbacks['on_open_record'](selected_id)
