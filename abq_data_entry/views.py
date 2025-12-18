@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
+from tkinter import messagebox
 from datetime import datetime
 from . import widgets as w
 
@@ -7,8 +8,10 @@ from . import widgets as w
 class DataRecordForm(tk.Frame):
     """The input form for our widgets"""
 
-    def __init__(self, parent, fields, *args, **kwargs):
+    def __init__(self, parent, fields, settings, *args, **kwargs):
         super().__init__(parent, *args, **kwargs)
+        self.settings = settings
+
         # A dict to keep track of input widgets
         self.inputs = {}
 
@@ -160,12 +163,17 @@ class DataRecordForm(tk.Frame):
         for widget in self.inputs.values():
             widget.set('')
 
-        current_date = datetime.today().strftime('%Y-%m-%d')
-        self.inputs['Date'].set(current_date)
-        self.inputs['Time'].input.focus()
+        # new for ch6
+        if self.settings['autofill date'].get():
+            current_date = datetime.today().strftime('%Y-%m-%d')
+            self.inputs['Date'].set(current_date)
+            self.inputs['Time'].input.focus()
 
         # check if we need to put our values back, then do it.
-        if plot not in ('', plot_values[-1]):
+        if (
+            self.settings['autofill sheet data'].get() and
+            plot not in ('', plot_values[-1])
+        ):
             self.inputs['Lab'].set(lab)
             self.inputs['Time'].set(time)
             self.inputs['Technician'].set(technician)
@@ -184,3 +192,54 @@ class DataRecordForm(tk.Frame):
                 errors[key] = widget.error.get()
 
         return errors
+
+
+class MainMenu(tk.Menu):
+    """The Application's main menu"""
+
+    def __init__(self, parent, settings, callbacks, **kwargs):
+        """Constructor for MainMenu
+
+        arguments:
+          parent - The parent widget
+          settings - a dict containing Tkinter variables
+          callbacks - a dict containing Python callables
+        """
+        super().__init__(parent, **kwargs)
+
+        # The file menu
+        file_menu = tk.Menu(self, tearoff=False)
+        file_menu.add_command(label="Select file…", command=callbacks['file->select'])
+        file_menu.add_separator()
+        file_menu.add_command(label="Quit", command=callbacks['file->quit'])
+        self.add_cascade(label='File', menu=file_menu)
+
+        # The options menu
+        options_menu = tk.Menu(self, tearoff=False)
+        options_menu.add_checkbutton(
+            label='Autofill Date',
+            variable=settings['autofill date']
+        )
+        options_menu.add_checkbutton(
+            label='Autofill Sheet data',
+            variable=settings['autofill sheet data']
+        )
+        self.add_cascade(label='Options', menu=options_menu)
+
+        # The help menu
+
+        help_menu = tk.Menu(self, tearoff=False)
+        help_menu.add_command(label='About…', command=self.show_about)
+        self.add_cascade(label='Help', menu=help_menu)
+
+
+    def show_about(self):
+        """Show the about dialog"""
+
+        about_message = 'ABQ Data Entry'
+        about_detail = (
+            'by Alan D Moore\n'
+            'For assistance please contact the author.'
+        )
+
+        messagebox.showinfo(title='About', message=about_message, detail=about_detail)
