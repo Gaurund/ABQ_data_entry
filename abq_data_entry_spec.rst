@@ -18,6 +18,11 @@ The program must:
     where CURRENTDATE is the date of the checks in ISO format (Year-month-day)
   - The CSV file must have all the fields as per the chart
 * enforce correct datatypes per field
+* have inputs that:
+  - ignore meaningless keystrokes
+  - require a value for all fields, except Notes
+  - get marked with an error if the value is invalid on focus-out
+* prevent saving the record when errors are present
 
 The program should try, whenever possible, to:
 
