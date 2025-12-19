@@ -285,16 +285,13 @@ class ValidatedRadioGroup(ttk.Frame):
     self.variable = variable or tk.StringVar()
     self.error = error_var or tk.StringVar()
     self.values = values or list()
-    self.button_args = button_args or dict()
+    button_args = button_args or dict()
 
     for v in self.values:
       button = ttk.Radiobutton(
-        self, value=v, text=v,
-        variable=self.variable, **self.button_args
+        self, value=v, text=v, variable=self.variable, **button_args
       )
-      button.pack(
-        side=tk.LEFT, ipadx=10, ipady=2, expand=True, fill='x'
-      )
+      button.pack(side=tk.LEFT, ipadx=10, ipady=2, expand=True, fill='x')
     self.bind('<FocusOut>', self.trigger_focusout_validation)
 
   def trigger_focusout_validation(self, *_):
