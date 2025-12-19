@@ -48,20 +48,39 @@ class Application(tk.Tk):
     event_callbacks = {
       '<<FileSelect>>': self._on_file_select,
       '<<FileQuit>>': lambda _: self.quit(),
+      # new for ch8
+      '<<ShowRecordlist>>': self._show_recordlist,
+      '<<NewRecord>>': self._new_record,
+
     }
     for sequence, callback in event_callbacks.items():
       self.bind(sequence, callback)
-
-
     ttk.Label(
       self,
       text="ABQ Data Entry Application",
       font=("TkDefaultFont", 16)
     ).grid(row=0)
 
+    # The notebook
+    self.notebook = ttk.Notebook(self)
+    self.notebook.enable_traversal()
+    self.notebook.grid(row=1, padx=10, sticky='NSEW')
+
+    # The data record form
     self.recordform = v.DataRecordForm(self, self.model, self.settings)
-    self.recordform.grid(row=1, padx=10, sticky=(tk.W + tk.E))
     self.recordform.bind('<<SaveRecord>>', self._on_save)
+    self.notebook.add(self.recordform, text='Entry Form')
+
+
+    # The data record list
+    # new for ch8
+    self.recordlist = v.RecordList(self)
+    self.notebook.insert(0, self.recordlist, text='Records')
+    self._populate_recordlist()
+    self.recordlist.bind('<<OpenRecord>>', self._open_record)
+
+
+    self._show_recordlist()
 
     # status bar
     self.status = tk.StringVar()
@@ -69,7 +88,7 @@ class Application(tk.Tk):
     self.statusbar.grid(sticky=(tk.W + tk.E), row=3, padx=10)
 
 
-    self._records_saved = 0
+    self.records_saved = 0
 
 
   def _on_save(self, *_):
@@ -95,12 +114,14 @@ class Application(tk.Tk):
       return False
 
     data = self.recordform.get()
-    self.model.save_record(data)
-    self._records_saved += 1
+    rownum = self.recordform.current_record
+    self.model.save_record(data, rownum)
+    self.records_saved += 1
     self.status.set(
-      "{} records saved this session".format(self._records_saved)
+      "{} records saved this session".format(self.records_saved)
     )
     self.recordform.reset()
+    self._populate_recordlist()
 
   def _on_file_select(self, *_):
     """Handle the file->select action"""
@@ -112,6 +133,7 @@ class Application(tk.Tk):
     )
     if filename:
       self.model = m.CSVModel(filename=filename)
+      self._populate_recordlist()
 
   @staticmethod
   def _simple_login(username, password):
@@ -157,3 +179,39 @@ class Application(tk.Tk):
     for key, variable in self.settings.items():
       self.settings_model.set(key, variable.get())
     self.settings_model.save()
+
+  # new for ch8
+  def _show_recordlist(self, *_):
+    """Show the recordform"""
+    self.notebook.select(self.recordlist)
+
+  def _populate_recordlist(self):
+    try:
+      rows = self.model.get_all_records()
+    except Exception as e:
+      messagebox.showerror(
+        title='Error',
+        message='Problem reading file',
+        detail=str(e)
+      )
+    else:
+      self.recordlist.populate(rows)
+
+  def _new_record(self, *_):
+    """Open the record form with a blank record"""
+    self.recordform.load_record(None)
+    self.notebook.select(self.recordform)
+
+
+  def _open_record(self, *_):
+    """Open the selected id from recordlist in the recordform"""
+    rowkey = self.recordlist.selected_id
+    try:
+      record = self.model.get_record(rowkey)
+    except Exception as e:
+      messagebox.showerror(
+        title='Error', message='Problem reading file', detail=str(e)
+      )
+    else:
+      self.recordform.load_record(rowkey, record)
+      self.notebook.select(self.recordform)

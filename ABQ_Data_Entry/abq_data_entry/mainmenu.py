@@ -52,8 +52,20 @@ class MainMenu(tk.Menu):
       variable=self.settings['autofill sheet data']
     )
 
+    # switch from recordlist to recordform
+    go_menu = tk.Menu(self, tearoff=False)
+    go_menu.add_command(
+      label="Record List",
+      command=self._event('<<ShowRecordlist>>')
+    )
+    go_menu.add_command(
+      label="New Record",
+      command=self._event('<<NewRecord>>')
+    )
+
     # add the menus in order to the main menu
     self.add_cascade(label='File', menu=file_menu)
+    self.add_cascade(label='Go', menu=go_menu)
     self.add_cascade(label='Options', menu=options_menu)
     self.add_cascade(label='Help', menu=help_menu)
 

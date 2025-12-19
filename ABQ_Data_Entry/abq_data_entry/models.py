@@ -1,7 +1,7 @@
 import csv
 from pathlib import Path
-import json
 import os
+import json
 
 from .constants import FieldTypes as FT
 from decimal import Decimal
@@ -59,17 +59,62 @@ class CSVModel:
       raise PermissionError(msg)
 
 
-
-  def save_record(self, data):
+  def save_record(self, data, rownum=None):
     """Save a dict of data to the CSV file"""
-    newfile = not self.file.exists()
 
-    with open(self.file, 'a', newline='') as fh:
-      csvwriter = csv.DictWriter(fh, fieldnames=self.fields.keys())
-      if newfile:
+    if rownum is None:
+      # This is a new record
+      newfile = not self.file.exists()
+
+      with open(self.file, 'a', newline='') as fh:
+        csvwriter = csv.DictWriter(fh, fieldnames=self.fields.keys())
+        if newfile:
+          csvwriter.writeheader()
+        csvwriter.writerow(data)
+    else:
+      # This is an update
+      records = self.get_all_records()
+      records[rownum] = data
+      with open(self.file, 'w', encoding='utf-8', newline='') as fh:
+        csvwriter = csv.DictWriter(fh, fieldnames=self.fields.keys())
         csvwriter.writeheader()
+        csvwriter.writerows(records)
 
-      csvwriter.writerow(data)
+  def get_all_records(self):
+    """Read in all records from the CSV and return a list"""
+    if not self.file.exists():
+      return []
+
+    with open(self.file, 'r', encoding='utf-8') as fh:
+      csvreader = csv.DictReader(fh.readlines())
+      missing_fields = set(self.fields.keys()) - set(csvreader.fieldnames)
+      if len(missing_fields) > 0:
+        fields_string = ', '.join(missing_fields)
+        raise Exception(
+          f"File is missing fields: {fields_string}"
+        )
+      records = list(csvreader)
+
+    # Correct issue with boolean fields
+    trues = ('true', 'yes', '1')
+    bool_fields = [
+      key for key, meta
+      in self.fields.items()
+      if meta['type'] == FT.boolean
+    ]
+    for record in records:
+      for key in bool_fields:
+        record[key] = record[key].lower() in trues
+    return records
+
+  def get_record(self, rownum):
+    """Get a single record by row number
+
+    Callling code should catch IndexError
+      in case of a bad rownum.
+    """
+
+    return self.get_all_records()[rownum]
 
 
 class SettingsModel:
@@ -100,8 +145,9 @@ class SettingsModel:
 
   def save(self):
     """Save the current settings to the file"""
+    json_string = json.dumps(self.fields)
     with open(self.filepath, 'w') as fh:
-      json.dump(self.fields, fh)
+      fh.write(json_string)
 
   def load(self):
     """Load the settings from the file"""
@@ -112,7 +158,7 @@ class SettingsModel:
 
     # open the file and read in the raw values
     with open(self.filepath, 'r') as fh:
-      raw_values = json.load(fh)
+      raw_values = json.loads(fh.read())
 
     # don't implicitly trust the raw values, but only get known keys
     for key in self.fields:
