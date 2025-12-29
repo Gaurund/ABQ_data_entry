@@ -19,6 +19,16 @@ class ValidatedMixin:
     vcmd = self.register(self._validate)
     invcmd = self.register(self._invalid)
 
+    style = ttk.Style()
+    widget_class = self.winfo_class()
+    validated_style = 'ValidatedInput.' + widget_class
+    style.map(
+      validated_style,
+      foreground=[('invalid', 'white'), ('!invalid', 'black')],
+      fieldbackground=[('invalid', 'darkred'), ('!invalid', 'white')]
+    )
+    self.configure(style=validated_style)
+
     self.configure(
       validate='all',
       validatecommand=(vcmd, '%P', '%s', '%S', '%V', '%i', '%d'),
@@ -34,7 +44,6 @@ class ValidatedMixin:
     Don't override this, override _key_validate, and _focus_validate
     """
     self.error.set('')
-    self._toggle_error()
 
     valid = True
     # if the widget is disabled, don't validate
@@ -76,7 +85,7 @@ class ValidatedMixin:
 
   def _focusout_invalid(self, **kwargs):
     """Handle invalid data on a focus event"""
-    self._toggle_error(True)
+    pass
 
   def _key_invalid(self, **kwargs):
     """Handle invalid data on a key event.  By default we want to do nothing"""
@@ -381,7 +390,7 @@ class LabelInput(ttk.Frame):
     # setup the variable
     if input_class in (
         ttk.Checkbutton, ttk.Button, ttk.Radiobutton, ValidatedRadioGroup
-    ):
+        ):
       input_args["variable"] = self.variable
     else:
       input_args["textvariable"] = self.variable
@@ -392,18 +401,23 @@ class LabelInput(ttk.Frame):
       self.input = tk.Frame(self)
       for v in input_args.pop('values', []):
         button = input_class(
-          self.input, value=v, text=v, **input_args
-        )
+          self.input, value=v, text=v, **input_args)
         button.pack(side=tk.LEFT, ipadx=10, ipady=2, expand=True, fill='x')
+      self.input.error = getattr(button, 'error', None)
+      self.input.trigger_focusout_validation = \
+        button._focusout_validate
     else:
       self.input = input_class(self, **input_args)
+
     self.input.grid(row=1, column=0, sticky=(tk.W + tk.E))
     self.columnconfigure(0, weight=1)
 
     # Set up error handling & display
+    error_style = 'Error.' + label_args.get('style', 'TLabel')
+    ttk.Style().configure(error_style, foreground='darkred')
     self.error = getattr(self.input, 'error', tk.StringVar())
-    ttk.Label(self, textvariable=self.error).grid(
-      row=2, column=0, sticky=(tk.W + tk.E)
+    ttk.Label(self, textvariable=self.error, style=error_style).grid(
+        row=2, column=0, sticky=(tk.W + tk.E)
     )
 
     # Set up disable variable

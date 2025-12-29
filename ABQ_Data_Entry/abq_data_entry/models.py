@@ -122,7 +122,10 @@ class SettingsModel:
 
   fields = {
     'autofill date': {'type': 'bool', 'value': True},
-    'autofill sheet data': {'type': 'bool', 'value': True}
+    'autofill sheet data': {'type': 'bool', 'value': True},
+    'font size': {'type': 'int', 'value': 9},
+    'font family': {'type': 'str', 'value': ''},
+    'theme': {'type': 'str', 'value': 'default'}
   }
 
   def __init__(self):
