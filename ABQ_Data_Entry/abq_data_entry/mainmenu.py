@@ -7,8 +7,24 @@ from tkinter import font
 
 from . import images
 
-class MainMenu(tk.Menu):
+class GenericMainMenu(tk.Menu):
   """The Application's main menu"""
+
+  accelerators = {
+    'file_open': 'Ctrl+O',
+    'quit': 'Ctrl+Q',
+    'record_list': 'Ctrl+L',
+    'new_record': 'Ctrl+R',
+  }
+
+  keybinds = {
+    '<Control-o>': '<<FileSelect>>',
+    '<Control-q>': '<<FileQuit>>',
+    '<Control-n>': '<<NewRecord>>',
+    '<Control-l>': '<<ShowRecordlist>>'
+  }
+
+  styles = {}
 
   def _event(self, sequence):
     """Return a callback function that generates the sequence"""
@@ -34,79 +50,51 @@ class MainMenu(tk.Menu):
        ),
     }
 
-  def __init__(self, parent, settings, **kwargs):
-    """Constructor for MainMenu
+  def _add_file_open(self, menu):
 
-    arguments:
-      parent - The parent widget
-      settings - a dict containing Tkinter variables
-    """
-    super().__init__(parent, **kwargs)
-    self.settings = settings
-    self._create_icons()
+    menu.add_command(
+      label='Select file…', command=self._event('<<FileSelect>>'), 
+      accelerator=self.accelerators.get('file_open'),
+      image=self.icons.get('file'), compound=tk.LEFT
+  )
 
-    # Styles
-    self.styles = {
-      'background': '#333',
-      'foreground': 'white',
-      'activebackground': '#777',
-      'activeforeground': 'white',
-      'relief': tk.GROOVE
-    }
-    self.configure(**self.styles)
-
-    # The help menu
-    help_menu = tk.Menu(self, tearoff=False, **self.styles)
-    help_menu.add_command(
-      label='About…',
-      command=self.show_about,
-      image=self.icons['about'],
-      compound=tk.LEFT
+  def _add_quit(self, menu):
+    menu.add_command(
+      label='Quit', command=self._event('<<FileQuit>>'),
+      accelerator=self.accelerators.get('quit'),
+      image=self.icons.get('quit'), compound=tk.LEFT
     )
 
-    # The file menu
-    file_menu = tk.Menu(self, tearoff=False, **self.styles)
-    file_menu.add_command(
-      label="Select file…",
-      command=self._event('<<FileSelect>>'),
-      image=self.icons['file_open'],
-      compound=tk.LEFT
+  def _add_autofill_date(self, menu):
+    menu.add_checkbutton(
+      label='Autofill Date', variable=self.settings['autofill date']
     )
 
-    file_menu.add_separator()
-    file_menu.add_command(
-      label="Quit",
-      command=self._event('<<FileQuit>>'),
-      image=self.icons['quit'],
-      compound=tk.LEFT
-    )
-
-    # The options menu
-    options_menu = tk.Menu(self, tearoff=False, **self.styles)
-    options_menu.add_checkbutton(
-      label='Autofill Date',
-      variable=self.settings['autofill date']
-    )
-    options_menu.add_checkbutton(
+  def _add_autofill_sheet(self, menu):
+    menu.add_checkbutton(
       label='Autofill Sheet data',
       variable=self.settings['autofill sheet data']
     )
 
-    size_menu = tk.Menu(options_menu, tearoff=False, **self.styles)
-    options_menu.add_cascade(label='Font Size', menu=size_menu)
+  def _add_font_size_menu(self, menu):
+    font_size_menu = tk.Menu(self, tearoff=False, **self.styles)
     for size in range(6, 17, 1):
-      size_menu.add_radiobutton(
+      font_size_menu.add_radiobutton(
         label=size, value=size,
         variable=self.settings['font size']
       )
-    family_menu = tk.Menu(options_menu, tearoff=False, **self.styles)
-    options_menu.add_cascade(label='Font Family', menu=family_menu)
+    menu.add_cascade(label='Font size', menu=font_size_menu)
+
+  def _add_font_family_menu(self, menu):
+    font_family_menu = tk.Menu(self, tearoff=False, **self.styles)
     for family in font.families():
-      family_menu.add_radiobutton(
+      font_family_menu.add_radiobutton(
         label=family, value=family,
         variable=self.settings['font family']
-      )
+    )
+    menu.add_cascade(label='Font family', menu=font_family_menu)
 
+  def _add_themes_menu(self, menu):
     style = ttk.Style()
     themes_menu = tk.Menu(self, tearoff=False, **self.styles)
     for theme in style.theme_names():
@@ -114,30 +102,66 @@ class MainMenu(tk.Menu):
         label=theme, value=theme,
         variable=self.settings['theme']
       )
-    options_menu.add_cascade(label='Theme', menu=themes_menu)
+    menu.add_cascade(label='Theme', menu=themes_menu)
     self.settings['theme'].trace_add('write', self._on_theme_change)
 
+  def _add_go_record_list(self, menu):
+    menu.add_command(
+      label="Record List", command=self._event('<<ShowRecordlist>>'),
+      accelerator=self.accelerators.get('record_list'),
+      image=self.icons.get('record_list'), compound=tk.LEFT
+    )
+
+  def _add_go_new_record(self, menu):
+    menu.add_command(
+      label="New Record", command=self._event('<<NewRecord>>'),
+      accelerator=self.accelerators.get('new_record'),
+      image=self.icons.get('new_record'), compound=tk.LEFT
+    )
+
+  def _add_about(self, menu):
+    menu.add_command(
+      label='About…', command=self.show_about,
+      image=self.icons.get('about'), compound=tk.LEFT
+    )
+
+  def _build_menu(self):
+    # The file menu
+    self._menus['File'] = tk.Menu(self, tearoff=False, **self.styles)
+    self._add_file_open(self._menus['File'])
+    self._menus['File'].add_separator()
+    self._add_quit(self._menus['File'])
+
+    # The options menu
+    self._menus['Options'] = tk.Menu(self, tearoff=False, **self.styles)
+    self._add_autofill_date(self._menus['Options'])
+    self._add_autofill_sheet(self._menus['Options'])
+    self._add_font_size_menu(self._menus['Options'])
+    self._add_font_family_menu(self._menus['Options'])
+    self._add_themes_menu(self._menus['Options'])
 
     # switch from recordlist to recordform
-    go_menu = tk.Menu(self, tearoff=False, **self.styles)
-    go_menu.add_command(
-      label="Record List",
-      command=self._event('<<ShowRecordlist>>'),
-      image=self.icons['record_list'],
-      compound=tk.LEFT
-    )
-    go_menu.add_command(
-      label="New Record",
-      command=self._event('<<NewRecord>>'),
-      image=self.icons['new_record'],
-      compound=tk.LEFT
-    )
+    self._menus['Go'] = tk.Menu(self, tearoff=False, **self.styles)
+    self._add_go_record_list(self._menus['Go'])
+    self._add_go_new_record(self._menus['Go'])
 
-    # add the menus in order to the main menu
-    self.add_cascade(label='File', menu=file_menu)
-    self.add_cascade(label='Go', menu=go_menu)
-    self.add_cascade(label='Options', menu=options_menu)
-    self.add_cascade(label='Help', menu=help_menu)
+    # The help menu
+    self._menus['Help'] = tk.Menu(self, tearoff=False, **self.styles)
+    self.add_cascade(label='Help', menu=self._menus['Help'])
+    self._add_about(self._menus['Help'])
+
+    for label, menu in self._menus.items():
+      self.add_cascade(label=label, menu=menu)
+    self.configure(**self.styles)
+
+  def __init__(self, parent, settings, **kwargs):
+    super().__init__(parent, **kwargs)
+    self.settings = settings
+    self._create_icons()
+    self._menus = dict()
+    self._build_menu()
+    self._bind_accelerators()
+    self.configure(**self.styles)
 
   def show_about(self):
     """Show the about dialog"""
@@ -164,3 +188,179 @@ class MainMenu(tk.Menu):
       message=message,
       detail=detail
     )
+
+  def _bind_accelerators(self):
+
+    for key, sequence in self.keybinds.items():
+      self.bind_all(key, self._event(sequence))
+
+class WindowsMainMenu(GenericMainMenu):
+  """
+  Changes:
+   - Windows uses file->exit instead of file->quit,
+     and no accelerator is used.
+   - Windows can handle commands on the menubar, so
+     put 'Record List' / 'New Record' on the bar
+   - Windows can't handle icons on the menu bar, though
+   - Put 'options' under 'Tools' with separator
+  """
+
+  def _create_icons(self):
+    super()._create_icons()
+    del(self.icons['new_record'])
+    del(self.icons['record_list'])
+
+  def __init__(self, *args, **kwargs):
+    del(self.keybinds['<Control-q>'])
+    super().__init__(*args, **kwargs)
+
+  def _add_quit(self, menu):
+    menu.add_command(
+      label='Exit',
+      command=self._event('<<FileQuit>>'),
+      image=self.icons.get('quit'),
+      compound=tk.LEFT
+    )
+
+  def _build_menu(self):
+    # File Menu
+    self._menus['File'] = tk.Menu(self, tearoff=False)
+    self._add_file_open(self._menus['File'])
+    self._menus['File'].add_separator()
+    self._add_quit(self._menus['File'])
+
+    #Tools menu
+    self._menus['Tools'] = tk.Menu(self, tearoff=False)
+    self._add_autofill_date(self._menus['Tools'])
+    self._add_autofill_sheet(self._menus['Tools'])
+    self._add_font_size_menu(self._menus['Tools'])
+    self._add_font_family_menu(self._menus['Tools'])
+    self._add_themes_menu(self._menus['Tools'])
+
+    # The help menu
+    self._menus['Help'] = tk.Menu(self, tearoff=False)
+    self._add_about(self._menus['Help'])
+
+    # Build main menu
+    self.add_cascade(label='File', menu=self._menus['File'])
+    self.add_cascade(label='Tools', menu=self._menus['Tools'])
+    self._add_go_record_list(self)
+    self._add_go_new_record(self)
+    self.add_cascade(label='Help', menu=self._menus['Help'])
+
+
+class LinuxMainMenu(GenericMainMenu):
+  """Differences for Linux:
+
+    - Edit menu for autofill options
+    - View menu for font & theme options
+    - Use color theme for menu
+  """
+  styles = {
+    'background': '#333',
+    'foreground': 'white',
+    'activebackground': '#777',
+    'activeforeground': 'white',
+    'relief': tk.GROOVE
+  }
+
+
+  def _build_menu(self):
+    self._menus['File'] = tk.Menu(self, tearoff=False, **self.styles)
+    self._add_file_open(self._menus['File'])
+    self._menus['File'].add_separator()
+    self._add_quit(self._menus['File'])
+
+    # The edit menu
+    self._menus['Edit'] = tk.Menu(self, tearoff=False, **self.styles)
+    self._add_autofill_date(self._menus['Edit'])
+    self._add_autofill_sheet(self._menus['Edit'])
+
+    # The View menu
+    self._menus['View'] = tk.Menu(self, tearoff=False, **self.styles)
+    self._add_font_size_menu(self._menus['View'])
+    self._add_font_family_menu(self._menus['View'])
+    self._add_themes_menu(self._menus['View'])
+
+    # switch from recordlist to recordform
+    self._menus['Go'] = tk.Menu(self, tearoff=False, **self.styles)
+    self._add_go_record_list(self._menus['Go'])
+    self._add_go_new_record(self._menus['Go'])
+
+    # The help menu
+    self._menus['Help'] = tk.Menu(self, tearoff=False, **self.styles)
+    self._add_about(self._menus['Help'])
+
+    for label, menu in self._menus.items():
+      self.add_cascade(label=label, menu=menu)
+
+
+class MacOsMainMenu(GenericMainMenu):
+  """
+  Differences for MacOS:
+
+    - Create App Menu
+    - Move about to app menu, remove 'help'
+    - Remove redundant quit command
+    - Change accelerators to Command-[]
+    - Add View menu for font & theme options
+    - Add Edit menu for autofill options
+    - Add Window menu for navigation commands
+  """
+  keybinds = {
+      '<Command-o>': '<<FileSelect>>',
+      '<Command-n>': '<<NewRecord>>',
+      '<Command-l>': '<<ShowRecordlist>>'
+    }
+  accelerators = {
+    'file_open': 'Cmd-O',
+    'record_list': 'Cmd-L',
+    'new_record': 'Cmd-R',
+    }
+
+  def _add_about(self, menu):
+    menu.add_command(
+      label='About ABQ Data Entry', command=self.show_about,
+      image=self.icons.get('about'), compound=tk.LEFT
+    )
+
+  def _build_menu(self):
+    self._menus['ABQ Data Entry'] = tk.Menu(
+      self, tearoff=False,
+      name='apple'
+    )
+    self._add_about(self._menus['ABQ Data Entry'])
+    self._menus['ABQ Data Entry'].add_separator()
+
+    self._menus['File'] = tk.Menu(self, tearoff=False)
+    self._add_file_open(self._menus['File'])
+
+    self._menus['Edit'] = tk.Menu(self, tearoff=False)
+    self._add_autofill_date(self._menus['Edit'])
+    self._add_autofill_sheet(self._menus['Edit'])
+
+    # View menu
+    self._menus['View'] = tk.Menu(self, tearoff=False)
+    self._add_font_size_menu(self._menus['View'])
+    self._add_font_family_menu(self._menus['View'])
+    self._add_themes_menu(self._menus['View'])
+
+    # Window Menu
+    self._menus['Window'] = tk.Menu(self, name='window', tearoff=False)
+    self._add_go_record_list(self._menus['Window'])
+    self._add_go_new_record(self._menus['Window'])
+
+    for label, menu in self._menus.items():
+      self.add_cascade(label=label, menu=menu)
+
+
+def get_main_menu_for_os(os_name):
+  """Return the menu class appropriate to the given OS"""
+  menus = {
+    'Linux': LinuxMainMenu,
+    'Darwin': MacOsMainMenu,
+    'freebsd7': LinuxMainMenu,
+    'Windows': WindowsMainMenu
+  }
+
+  return menus.get(os_name, GenericMainMenu)

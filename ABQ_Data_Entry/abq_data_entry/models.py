@@ -2,6 +2,7 @@ import csv
 from pathlib import Path
 import os
 import json
+import platform
 
 from .constants import FieldTypes as FT
 from decimal import Decimal
@@ -66,7 +67,7 @@ class CSVModel:
       # This is a new record
       newfile = not self.file.exists()
 
-      with open(self.file, 'a', newline='') as fh:
+      with open(self.file, 'a', encoding='utf-8', newline='') as fh:
         csvwriter = csv.DictWriter(fh, fieldnames=self.fields.keys())
         if newfile:
           csvwriter.writeheader()
@@ -128,10 +129,18 @@ class SettingsModel:
     'theme': {'type': 'str', 'value': 'default'}
   }
 
+  config_dirs = {
+    "Linux": Path(os.environ.get('$XDG_CONFIG_HOME', Path.home() / '.config')),
+    "freebsd7": Path(os.environ.get('$XDG_CONFIG_HOME', Path.home() / '.config')),
+    'Darwin': Path.home() / 'Library' / 'Application Support',
+    'Windows': Path.home() / 'AppData' / 'Local'
+  }
+
   def __init__(self):
     # determine the file path
     filename = 'abq_settings.json'
-    self.filepath = Path.home() / filename
+    filedir = self.config_dirs.get(platform.system(), Path.home())    
+    self.filepath = filedir / filename
 
     # load in saved values
     self.load()
@@ -149,7 +158,7 @@ class SettingsModel:
   def save(self):
     """Save the current settings to the file"""
     json_string = json.dumps(self.fields)
-    with open(self.filepath, 'w') as fh:
+    with open(self.filepath, 'w', encoding='utf-8') as fh:
       fh.write(json_string)
 
   def load(self):

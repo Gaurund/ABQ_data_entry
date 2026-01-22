@@ -5,10 +5,11 @@ from tkinter import ttk
 from tkinter import messagebox
 from tkinter import filedialog
 from tkinter import font
+import platform
 
 from . import views as v
 from . import models as m
-from .mainmenu import MainMenu
+from .mainmenu import get_main_menu_for_os
 from . import images
 
 class Application(tk.Tk):
@@ -21,10 +22,6 @@ class Application(tk.Tk):
     # Hide window while GUI is built
     self.withdraw()
 
-    # Set taskbar icon
-    self.taskbar_icon = tk.PhotoImage(file=images.ABQ_LOGO_64)
-    self.iconphoto(True, self.taskbar_icon)
-
     # Authenticate
     if not self._show_login():
       self.destroy()
@@ -36,7 +33,11 @@ class Application(tk.Tk):
    # Create model
     self.model = m.CSVModel()
 
-    # load settings
+    # Load settings
+    # self.settings = {
+    #   'autofill date': tk.BooleanVar(),
+    #   'autofill sheet data': tk.BoleanVar()
+    # }
     self.settings_model = m.SettingsModel()
     self._load_settings()
 
@@ -44,9 +45,15 @@ class Application(tk.Tk):
     self.title("ABQ Data Entry Application")
     self.columnconfigure(0, weight=1)
 
+    # Set taskbar icon
+    self.taskbar_icon = tk.PhotoImage(file=images.ABQ_LOGO_64)
+    self.iconphoto(True, self.taskbar_icon)
 
     # Create the menu
-    menu = MainMenu(self, self.settings)
+    #menu = MainMenu(self, self.settings)
+    menu_class = get_main_menu_for_os(platform.system())
+    menu = menu_class(self, self.settings)
+
     self.config(menu=menu)
     event_callbacks = {
       '<<FileSelect>>': self._on_file_select,
@@ -152,8 +159,8 @@ class Application(tk.Tk):
     )
     if filename:
       self.model = m.CSVModel(filename=filename)
-      self._populate_recordlist()
       self.recordlist.clear_tags()
+      self._populate_recordlist()
 
   @staticmethod
   def _simple_login(username, password):
@@ -251,9 +258,7 @@ class Application(tk.Tk):
     """Set the application's font"""
     font_size = self.settings['font size'].get()
     font_family = self.settings['font family'].get()
-    font_names = (
-      'TkDefaultFont', 'TkMenuFont', 'TkTextFont', 'TkFixedFont'
-    )
+    font_names = ('TkDefaultFont', 'TkMenuFont', 'TkTextFont')
     for font_name in font_names:
       tk_font = font.nametofont(font_name)
       tk_font.config(size=font_size, family=font_family)
